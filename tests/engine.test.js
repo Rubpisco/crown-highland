@@ -236,6 +236,56 @@ test('高地上的弓兵可以攻击斜前方 1 格的高地下敌人', () => {
   assert.equal(E.generateLegalMoves(s, 'black').some((m) => m.captureId === 'wE'), true);
 });
 
+test('盾兵攻击斜前方和正后方，不攻击斜后方', () => {
+  let s = emptyState();
+  plain(s);
+  add(s, 'wSh', 'white', 'P', 'shield', 5, 5);
+  add(s, 'bF', 'black', 'P', 'infantry', 4, 4);
+  add(s, 'bB', 'black', 'P', 'infantry', 5, 6);
+  add(s, 'bD', 'black', 'P', 'infantry', 4, 6);
+  add(s, 'wK', 'white', 'K', 'david', 0, 0);
+  add(s, 'bK', 'black', 'K', 'david', 11, 11);
+  assert.equal(E.canAttack(s, s.pieces.wSh, { x: 5, y: 5 }, { x: 4, y: 4 }), true);
+  assert.equal(E.canAttack(s, s.pieces.wSh, { x: 5, y: 5 }, { x: 5, y: 6 }), true);
+  assert.equal(E.canAttack(s, s.pieces.wSh, { x: 5, y: 5 }, { x: 4, y: 6 }), false);
+  const moves = E.generatePseudoMoves(s, 'white', s.pieces.wSh);
+  assert.equal(moves.some((m) => m.captureId === 'bF'), true);
+  assert.equal(moves.some((m) => m.captureId === 'bB'), true);
+  assert.equal(moves.some((m) => m.captureId === 'bD'), false);
+  const legal = E.generateLegalMoves(s, 'white');
+  assert.equal(legal.some((m) => m.captureId === 'bF'), true);
+  assert.equal(legal.some((m) => m.captureId === 'bB'), true);
+  assert.equal(legal.some((m) => m.captureId === 'bD'), false);
+
+  // 高地上的盾兵仍不能攻击正后方的低地敌人。
+  s = emptyState();
+  plain(s);
+  add(s, 'wSh', 'white', 'P', 'shield', 5, 5);
+  add(s, 'bB', 'black', 'P', 'infantry', 5, 6);
+  add(s, 'wK', 'white', 'K', 'david', 0, 0);
+  add(s, 'bK', 'black', 'K', 'david', 11, 11);
+  highland(s, [[5, 5]]);
+  assert.equal(E.canAttack(s, s.pieces.wSh, { x: 5, y: 5 }, { x: 5, y: 6 }), false);
+  assert.equal(E.generatePseudoMoves(s, 'white', s.pieces.wSh).some((m) => m.captureId === 'bB'), false);
+
+  // 黑方镜像：斜前方和正后方可攻击，斜后方不可攻击。
+  s = emptyState('black');
+  plain(s);
+  add(s, 'bSh', 'black', 'P', 'shield', 5, 5);
+  add(s, 'wF', 'white', 'P', 'infantry', 6, 6);
+  add(s, 'wB', 'white', 'P', 'infantry', 5, 4);
+  add(s, 'wD', 'white', 'P', 'infantry', 6, 4);
+  add(s, 'wK', 'white', 'K', 'david', 0, 0);
+  add(s, 'bK', 'black', 'K', 'david', 11, 11);
+  assert.equal(E.canAttack(s, s.pieces.bSh, { x: 5, y: 5 }, { x: 6, y: 6 }), true);
+  assert.equal(E.canAttack(s, s.pieces.bSh, { x: 5, y: 5 }, { x: 5, y: 4 }), true);
+  assert.equal(E.canAttack(s, s.pieces.bSh, { x: 5, y: 5 }, { x: 6, y: 4 }), false);
+  const blackMoves = E.generatePseudoMoves(s, 'black', s.pieces.bSh);
+  assert.equal(blackMoves.some((m) => m.captureId === 'wF'), true);
+  assert.equal(blackMoves.some((m) => m.captureId === 'wB'), true);
+  assert.equal(blackMoves.some((m) => m.captureId === 'wD'), false);
+});
+
 test('高地目标：普通棋子只能山脚/同片高地攻击，攻城车可远攻', () => {
   let s = emptyState();
   plain(s);

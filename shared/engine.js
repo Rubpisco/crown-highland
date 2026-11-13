@@ -726,7 +726,8 @@ export function canAttack(state, attacker, from, to) {
           ok = true;
         }
       } else if (sub === 'shield') {
-        if (adx === 1 && (dy === fwd || dy === -fwd)) {
+        // 盾兵攻击斜前方或正后方，不攻击斜后方。
+        if ((adx === 1 && dy === fwd) || (adx === 0 && dy === -fwd)) {
           ok = !isHighlandSquare(state, to.x, to.y) || sameRegionHighland;
         }
       }
@@ -1097,17 +1098,10 @@ export function generatePseudoMoves(state, side, piece) {
           capture(from.x, from.y + fwd, 'normal', { allowDownhill: true });
         }
       } else if (sub === 'shield') {
-        if (!startH) {
-          capture(from.x - 1, from.y + fwd);
-          capture(from.x + 1, from.y + fwd);
-          capture(from.x - 1, from.y - fwd);
-          capture(from.x + 1, from.y - fwd);
-        } else {
-          capture(from.x - 1, from.y + fwd);
-          capture(from.x + 1, from.y + fwd);
-          capture(from.x - 1, from.y - fwd);
-          capture(from.x + 1, from.y - fwd);
-        }
+        // 斜前 1 格、正后 1 格；不攻击斜后方。
+        capture(from.x - 1, from.y + fwd);
+        capture(from.x + 1, from.y + fwd);
+        capture(from.x, from.y - fwd);
       }
       break;
     }
