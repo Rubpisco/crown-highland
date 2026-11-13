@@ -91,7 +91,7 @@ export const SUBTYPES = {
   ],
   P: [
     { id: 'infantry', name: '步兵', short: '步', text: '向前 1 或 2 格；斜前 1 格吃子；可上相邻空高地，可攻击同一片高地上的敌子；下高地只能走正前方 1 格，且在高地上不能攻击高地下的敌人。' },
-    { id: 'archer', name: '弓兵', short: '弓', text: '向前 1 格；初次可走 2 格并上相邻高地；左右 1、前方 2 的 L 形点位远程攻击，路径不受高地阻挡；在高地上可以攻击斜前方 1 格的高地下敌人，但不能攻击正前方的高地下敌人。' },
+    { id: 'archer', name: '弓兵', short: '弓', text: '向前 1 格；初次可走 2 格并上相邻高地；左右 1、前方 2 的 L 形点位远程攻击，路径不受高地阻挡；在高地上只能攻击斜前方 1 格的高地下敌人，不能攻击同一片高地上的斜前方敌人，也不能攻击正前方的高地下敌人。' },
     { id: 'spear', name: '枪兵', short: '枪', text: '向前 1 格；初次可走 2 格并上相邻高地；斜前 1 格、正前 2 格攻击并移动；从高地往下只能攻击正前方 1 格。' },
     { id: 'shield', name: '盾兵', short: '盾', text: '向前 1 格；初次可走 2 格并上相邻高地；斜前 1 格、正后 1 格攻击并移动；在高地上不能攻击高地下的敌人。' },
   ],
@@ -692,7 +692,7 @@ export function canAttack(state, attacker, from, to) {
       const sub = attacker.subtype;
       const startH = isHighlandSquare(state, from.x, from.y);
       const targetH = isHighlandSquare(state, to.x, to.y);
-      // 小兵在高地上不能攻击高地下的敌人；枪兵正前方一格、弓兵斜前方一格是高地边缘的例外。
+      // 小兵在高地上不能攻击高地下的敌人；枪兵正前方一格、弓兵斜前方一格（仅低处）是高地边缘的例外。
       if (startH && !targetH &&
         !(sub === 'spear' && adx === 0 && dy === fwd) &&
         !(sub === 'archer' && adx === 1 && dy === fwd)) break;
@@ -705,7 +705,8 @@ export function canAttack(state, attacker, from, to) {
         else if (!startH && adx === 1 && dy === fwd && isHighlandSquare(state, to.x, to.y)) ok = true;
         else if (startH && adx === 0 && dy === fwd) ok = sameRegionHighland;
         else if (startH && adx === 1 && dy === fwd) {
-          ok = !isHighlandSquare(state, to.x, to.y) || sameRegionHighland;
+          // 高地上的斜前方攻击只针对低处；同一片连续高地上的斜前方敌人不可攻击。
+          ok = !targetH;
         }
       } else if (sub === 'spear') {
         if (adx === 1 && dy === fwd) {
@@ -1048,6 +1049,7 @@ export function generatePseudoMoves(state, side, piece) {
         // 小兵在高地上不能攻击高地下的敌人；枪兵正前方、弓兵斜前方是例外：
         // 高地边缘算额外一格，枪兵从高地只能攻击正下方一格；弓兵可攻击斜下方一格。
         if (startH && !h && !opts.allowDownhill) return;
+        if (opts.requireLowland && h) return;
         const sameRegion = startH && h && sameHighlandRegion(state, from, { x, y });
         if (h && !opts.allowHighland && !opts.requireHighland && !sameRegion) return;
         if (!h && opts.requireHighland) return;
@@ -1072,9 +1074,9 @@ export function generatePseudoMoves(state, side, piece) {
           capture(from.x + 1, from.y + fwd, 'ranged', { requireHighland: true });
         } else {
           capture(from.x, from.y + fwd, 'normal', { requireHighland: true, sameRegion: true });
-          // 高地上的弓兵可以攻击斜前方 1 格的高地下敌人；正前方仍受高地边缘限制。
-          capture(from.x - 1, from.y + fwd, 'ranged', { allowDownhill: true });
-          capture(from.x + 1, from.y + fwd, 'ranged', { allowDownhill: true });
+          // 高地上的弓兵只能攻击斜前方 1 格的高地下敌人；同片高地的斜前方目标、正前方低处目标都不可攻击。
+          capture(from.x - 1, from.y + fwd, 'ranged', { allowDownhill: true, requireLowland: true });
+          capture(from.x + 1, from.y + fwd, 'ranged', { allowDownhill: true, requireLowland: true });
         }
       } else if (sub === 'spear') {
         if (!startH) {

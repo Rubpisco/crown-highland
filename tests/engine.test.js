@@ -201,6 +201,19 @@ test('高地上的弓兵可以攻击斜前方 1 格的高地下敌人', () => {
   assert.equal(E.generatePseudoMoves(s, 'white', s.pieces.wA).some((m) => m.captureId === 'bE'), true);
   assert.equal(E.generateLegalMoves(s, 'white').some((m) => m.captureId === 'bE'), true);
 
+  // 同一片连续高地上的斜前方敌人不可攻击；斜下攻击只对低处生效。
+  s = emptyState();
+  plain(s);
+  add(s, 'wA', 'white', 'P', 'archer', 5, 5);
+  add(s, 'bE', 'black', 'P', 'infantry', 4, 4);
+  add(s, 'wK', 'white', 'K', 'david', 0, 0);
+  add(s, 'bK', 'black', 'K', 'david', 11, 11);
+  highland(s, [[5, 5], [4, 4]]);
+  assert.equal(E.highlandRegionAt(s, 5, 5), E.highlandRegionAt(s, 4, 4));
+  assert.equal(E.canAttack(s, s.pieces.wA, { x: 5, y: 5 }, { x: 4, y: 4 }), false);
+  assert.equal(E.generatePseudoMoves(s, 'white', s.pieces.wA).some((m) => m.captureId === 'bE'), false);
+  assert.equal(E.generateLegalMoves(s, 'white').some((m) => m.captureId === 'bE'), false);
+
   // 正前方和 L 形远程仍然不能越过高地边缘攻击低处。
   add(s, 'bF', 'black', 'P', 'infantry', 5, 4);
   add(s, 'bL', 'black', 'P', 'infantry', 4, 3);
