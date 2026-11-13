@@ -73,6 +73,7 @@ function cellClasses(state, x, y, opts, legalHere) {
     classes.push(hasCapture ? 'legal-capture' : 'legal-move');
     if (hasRanged) classes.push('legal-ranged');
   }
+  if (opts.setupInteractive) classes.push('setup-selectable');
   if (opts.promotion && opts.promotion.x === x && opts.promotion.y === y) classes.push('promotion-cell');
   if (opts.checkSide) {
     const p = state.board[y]?.[x] ? state.pieces[state.board[y][x]] : null;
@@ -105,6 +106,7 @@ export function renderBoard(state, opts = {}) {
   const { files, ranks } = coordLabels(orientation);
   const legal = legalMap(opts.legal);
   const interactive = opts.interactive !== false;
+  const setupInteractive = opts.setupInteractive === true;
   const cells = [];
 
   for (let dy = 0; dy < BOARD_H; dy++) {
@@ -119,9 +121,11 @@ export function renderBoard(state, opts = {}) {
       if (legalHere.some((m) => m.kind === 'transport')) actionLabels.push('运载');
       if (legalHere.some((m) => m.kind === 'demolish')) actionLabels.push('拆高地');
       const title = `${squareName(x, y)}${piece ? ` · ${pieceLabel(piece)}` : ''}${actionLabels.length ? ` · ${actionLabels.join('/')}` : ''}`;
-      const data = interactive
-        ? `data-action="cell" data-x="${x}" data-y="${y}" data-piece-id="${pieceId || ''}"`
-        : `data-x="${x}" data-y="${y}"`;
+      const data = setupInteractive
+        ? `data-action="setup-cell" data-x="${x}" data-y="${y}" data-piece-id="${pieceId || ''}"`
+        : interactive
+          ? `data-action="cell" data-x="${x}" data-y="${y}" data-piece-id="${pieceId || ''}"`
+          : `data-x="${x}" data-y="${y}"`;
       const pieceHtml = piece
         ? `<span class="piece side-${piece.side} type-${piece.type.toLowerCase()}" data-piece-id="${piece.id}">
              <span class="piece-glyph">${glyphFor(piece)}</span>
@@ -132,7 +136,7 @@ export function renderBoard(state, opts = {}) {
         ? renderPromotionBar(opts.promotion, x, y)
         : '';
       const inner = `${pieceHtml}${promotionHtml}`;
-      const a11y = interactive ? 'role="button" tabindex="-1"' : 'role="presentation"';
+      const a11y = interactive || setupInteractive ? 'role="button" tabindex="-1"' : 'role="presentation"';
       cells.push(`<div class="${cls}" ${data} title="${title}" ${a11y}><span class="cell-tone" aria-hidden="true"></span>${inner}</div>`);
     }
   }

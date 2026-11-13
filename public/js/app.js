@@ -24,9 +24,6 @@ const M_CHOICES = [
   ...R_CHOICES,
 ];
 
-const GROUP_NAMES = { K: '王', M: '后 / 车', R: '车', B: '主教', N: '骑士', P: '兵' };
-const GROUP_ORDER = ['K', 'M', 'R', 'B', 'N', 'P'];
-
 const app = {
   screen: 'home',
   mode: null, // ai | online | hotseat
@@ -44,6 +41,7 @@ const app = {
   previewKey: 'K:david',
   resultDismissed: false,
   setupFor: null,
+  setupSelected: null,
   online: {
     code: null,
     token: null,
@@ -300,6 +298,7 @@ function openSetup(kind, extra = {}) {
     app.online.joinCode = String(extra.code || app.online.joinCode || '').toUpperCase();
     app.online.error = '';
   }
+  app.setupSelected = { side: editingSide(), slot: 'K' };
   setScreen('setup');
 }
 
@@ -380,60 +379,122 @@ function loadoutSummary(side) {
     .join('');
 }
 
-function renderLoadoutEditor(side) {
-  const loadout = getLoadoutFor(side);
+const SETUP_LINE_NAMES = ['底线', '次底线', '第三线', '前哨线'];
+
+function setupLines(side) {
   const slots = E.FORMATION.filter((f) => f.side === side);
-  const groups = GROUP_ORDER.map((type) => ({
-    type,
-    name: GROUP_NAMES[type],
-    slots: slots.filter((f) => E.slotType(f.slot) === type),
-  })).filter((g) => g.slots.length);
+  const rows = [...new Set(slots.map((f) => f.y))]
+    .sort((a, b) => (side === 'white' ? b - a : a - b));
+  return rows.map((y, index) => ({
+    y,
+    label: `第 ${y + 1} 横排 · ${SETUP_LINE_NAMES[index] || '阵线'}`,
+    slots: slots.filter((f) => f.y === y).sort((a, b) => (side === 'white' ? a.x - b.x : b.x - a.x)),
+  }));
+}
+
+function ensureSetupSelection(side) {
+  const valid = app.setupSelected
+    && app.setupSelected.side === side
+    && E.FORMATION.some((f) => f.side === side && f.slot === app.setupSelected.slot);
+  if (!valid) app.setupSelected = { side, slot: 'K' };
+  return app.setupSelected;
+}
+
+function setupSelectedFormation(side = editingSide()) {
+  const selection = ensureSetupSelection(side);
+  return E.FORMATION.find((f) => f.side === selection.side && f.slot === selection.slot) || null;
+}
+
+function setupChoiceHint(slot, choice) {
+  const resolved = E.resolveSlot(slot, choice);
+  if (resolved.type === 'Q') return '王后：走法同后，直线与斜线任意距离。';
+  const def = E.subtypeDef(resolved.type, resolved.subtype);
+  return def?.text || '规则书固定槽位。';
+}
+
+function renderSetupSlotCard(side, f) {
+  const value = getLoadoutFor(side)[f.slot];
+  const selected = app.setupSelected?.side === side && app.setupSelected.slot === f.slot;
+  return `
+    <button class="loadout-slot${selected ? ' selected' : ''}" type="button"
+      data-action="setup-select-slot" data-side="${side}" data-slot="${f.slot}"
+      aria-pressed="${selected}" title="${f.slot} · ${E.squareName(f.x, f.y)} · ${esc(choiceLabel(f.slot, value))}">
+      <span class="loadout-slot-glyph">${choiceGlyph(f.slot, value)}</span>
+      <span class="loadout-slot-copy">
+        <b>${f.slot} · ${E.squareName(f.x, f.y)}</b>
+        <small>${esc(choiceLabel(f.slot, value))}</small>
+      </span>
+    </button>
+  `;
+}
+
+function renderLoadoutEditor(side) {
+  const slots = E.FORMATION.filter((f) => f.side === side);
+  const lines = setupLines(side);
 
   return `
-    <div class="panel panel-pad">
+    <div class="panel panel-pad loadout-editor">
       <div class="panel-title">
         <h3>${sideName(side)}阵容</h3>
-        <span>${slots.length} 个槽位</span>
+        <span>${slots.length} 个槽位 · 按横排排列</span>
       </div>
+      <p class="loadout-axis">从底线向前排列，每排按棋盘朝向从左到右。点击棋盘棋子或下方槽位，再在右侧选择亚型。</p>
       <div class="loadout-list">
-        ${groups
+        ${lines
           .map(
-            (g) => `
-          <div class="loadout-group">
-            <div class="loadout-group-head">
-              <strong>${g.name}</strong>
-              <span>${g.slots.length} 枚</span>
+            (line) => `
+          <section class="loadout-line">
+            <div class="loadout-line-head">
+              <strong>${line.label}</strong>
+              <span>${line.slots.length} 枚</span>
             </div>
-            <div class="loadout-rows">
-              ${g.slots
-                .map((f) => {
-                  const value = loadout[f.slot];
-                  const choices = slotChoices(f.slot);
-                  return `
-                    <div class="loadout-row">
-                      <span class="slot-name">${f.slot} · ${E.squareName(f.x, f.y)}</span>
-                      <div class="slot-preview">
-                        <span class="mini-glyph">${choiceGlyph(f.slot, value)}</span>
-                        <select data-action="set-slot" data-side="${side}" data-slot="${f.slot}" aria-label="${f.slot} 亚型">
-                          ${choices
-                            .map(
-                              (c) =>
-                                `<option value="${esc(c.value ?? '')}" ${c.value === value ? 'selected' : ''}>${esc(c.label)}</option>`,
-                            )
-                            .join('')}
-                        </select>
-                      </div>
-                    </div>
-                  `;
-                })
-                .join('')}
+            <div class="loadout-line-slots">
+              ${line.slots.map((f) => renderSetupSlotCard(side, f)).join('')}
             </div>
-          </div>
+          </section>
         `,
           )
           .join('')}
       </div>
       <div class="summary-chips">${loadoutSummary(side)}</div>
+    </div>
+  `;
+}
+
+function renderSetupPicker(side) {
+  const f = setupSelectedFormation(side);
+  if (!f) return '';
+  const value = getLoadoutFor(side)[f.slot];
+  const choices = slotChoices(f.slot);
+  const current = choices.find((c) => c.value === value) || choices[0];
+  return `
+    <div class="panel panel-pad setup-picker" id="setup-picker">
+      <div class="panel-title">
+        <h3>棋子选项</h3>
+        <span>${sideName(side)} · ${f.slot} · ${E.squareName(f.x, f.y)}</span>
+      </div>
+      <div class="setup-picker-current">
+        <span class="setup-picker-glyph">${choiceGlyph(f.slot, value)}</span>
+        <div class="setup-picker-copy">
+          <strong>${esc(current.label)}</strong>
+          <p>${esc(setupChoiceHint(f.slot, value))}</p>
+        </div>
+      </div>
+      <div class="setup-choice-grid">
+        ${choices
+          .map(
+            (c) => `
+          <button class="setup-choice${c.value === value ? ' active' : ''}" type="button"
+            data-action="setup-choice" data-side="${side}" data-slot="${f.slot}"
+            data-value="${esc(c.value ?? '')}" aria-pressed="${c.value === value}">
+            <span class="setup-choice-glyph">${c.glyph}</span>
+            <span class="setup-choice-label">${esc(c.label)}</span>
+          </button>
+        `,
+          )
+          .join('')}
+      </div>
+      <p class="empty-note">点击棋盘上的任意棋子，可快速切换要修改的槽位。</p>
     </div>
   `;
 }
@@ -504,7 +565,7 @@ function renderSetup() {
       <div class="section-head">
         <div>
           <h2>${title}</h2>
-          <p>规则书阵型固定，你只需为每个槽位选择亚型。点击右侧下拉框调整，左侧棋盘会实时预览。</p>
+          <p>规则书阵型固定，你只需为每个槽位选择亚型。点击棋盘上的棋子或下方槽位，再在右侧棋子选项里更换。</p>
         </div>
         <div class="top-actions">
           <button class="btn ghost" data-action="setup-back">返回</button>
@@ -514,22 +575,28 @@ function renderSetup() {
 
       <div class="setup-grid">
         <div class="panel setup-board-panel">
-          ${renderBoard(preview, { orientation, interactive: false })}
-          <div class="summary-chips" style="justify-content:center;margin-top:14px">
-            <span class="chip">白方 <b>${material(preview, 'white')}</b></span>
-            <span class="chip">黑方 <b>${material(preview, 'black')}</b></span>
-            <span class="chip">高地 <b>${preview.terrain.flat().filter((t) => t === 'highland').length}</b></span>
-            <span class="chip">河道 <b>${preview.terrain.flat().filter((t) => t === 'river').length}</b></span>
+          <div id="setup-board">
+            ${renderBoard(preview, {
+              orientation,
+              interactive: false,
+              setupInteractive: true,
+              selected: setupSelectedFormation(side),
+            })}
+          </div>
+          <div class="summary-chips" id="setup-summary" style="justify-content:center;margin-top:14px">
+            ${setupSummaryHtml(preview)}
           </div>
         </div>
 
         <div class="setup-side">
+          ${renderSetupPicker(side)}
+
           <div class="panel panel-pad">
             <div class="panel-title"><h3>对局设置</h3><span>${modeLabel() || '战前'}</span></div>
             ${sideControl}
           </div>
 
-          ${renderLoadoutEditor(side)}
+          <div id="loadout-editor">${renderLoadoutEditor(side)}</div>
 
           <div class="panel panel-pad">
             <div class="setup-actions">
@@ -544,6 +611,140 @@ function renderSetup() {
       </div>
     </div>
   `;
+}
+
+function setupSummaryHtml(preview) {
+  return `
+    <span class="chip">白方 <b>${material(preview, 'white')}</b></span>
+    <span class="chip">黑方 <b>${material(preview, 'black')}</b></span>
+    <span class="chip">高地 <b>${preview.terrain.flat().filter((t) => t === 'highland').length}</b></span>
+    <span class="chip">河道 <b>${preview.terrain.flat().filter((t) => t === 'river').length}</b></span>
+  `;
+}
+
+function setupBoardHtml(side = editingSide()) {
+  const { white, black } = previewLoadouts();
+  const preview = E.createGameState(white, black);
+  return renderBoard(preview, {
+    orientation: side === 'black' ? 'black' : 'white',
+    interactive: false,
+    setupInteractive: true,
+    selected: setupSelectedFormation(side),
+  });
+}
+
+function refreshSetupBoardDom() {
+  const oldShell = document.querySelector('#setup-board .board-shell');
+  const oldBoard = oldShell?.querySelector('#board');
+  if (!oldShell || !oldBoard) return false;
+  const side = editingSide();
+  if (oldShell.dataset.orientation !== (side === 'black' ? 'black' : 'white')) return false;
+
+  const tpl = document.createElement('template');
+  tpl.innerHTML = setupBoardHtml(side);
+  const newBoard = tpl.content.querySelector('#board');
+  if (!newBoard || oldBoard.children.length !== newBoard.children.length) return false;
+
+  for (let i = 0; i < oldBoard.children.length; i++) {
+    const a = oldBoard.children[i];
+    const b = newBoard.children[i];
+    if (a.className !== b.className) a.className = b.className;
+    if (a.innerHTML !== b.innerHTML) a.innerHTML = b.innerHTML;
+    if (a.title !== b.title) a.title = b.title;
+    const pieceId = b.getAttribute('data-piece-id') || '';
+    if (a.getAttribute('data-piece-id') !== pieceId) a.setAttribute('data-piece-id', pieceId);
+    for (const attr of ['data-action', 'role', 'tabindex']) {
+      if (b.hasAttribute(attr)) {
+        if (a.getAttribute(attr) !== b.getAttribute(attr)) a.setAttribute(attr, b.getAttribute(attr));
+      } else {
+        a.removeAttribute(attr);
+      }
+    }
+  }
+  return true;
+}
+
+/**
+ * 布阵页局部刷新：只更新棋盘格子、棋子选项和槽位列表，不重建整个页面，
+ * 避免每换一次亚型都触发整屏淡入。
+ */
+function refreshSetupDom() {
+  if (app.screen !== 'setup') return;
+  const side = editingSide();
+  ensureSetupSelection(side);
+
+  if (!refreshSetupBoardDom()) {
+    const holder = document.getElementById('setup-board');
+    if (holder) holder.innerHTML = setupBoardHtml(side);
+  }
+
+  const picker = document.getElementById('setup-picker');
+  if (picker) picker.outerHTML = renderSetupPicker(side);
+
+  const editor = document.getElementById('loadout-editor');
+  if (editor) {
+    const scrollTop = editor.querySelector('.loadout-list')?.scrollTop || 0;
+    editor.innerHTML = renderLoadoutEditor(side);
+    const list = editor.querySelector('.loadout-list');
+    if (list) list.scrollTop = scrollTop;
+  }
+
+  const summary = document.getElementById('setup-summary');
+  if (summary) {
+    const { white, black } = previewLoadouts();
+    summary.innerHTML = setupSummaryHtml(E.createGameState(white, black));
+  }
+}
+
+function canEditSetupSide(side) {
+  if (app.setupFor === 'hotseat') return true;
+  return side === editingSide();
+}
+
+function selectSetupSlot(side, slot) {
+  if (!side || !slot) return;
+  if (!canEditSetupSide(side)) {
+    toast('只能调整自己的阵容');
+    return;
+  }
+  if (app.setupFor === 'hotseat' && app.hotseat.editing !== side) {
+    app.hotseat.editing = side;
+    app.orientation = side;
+    app.setupSelected = { side, slot };
+    render();
+    return;
+  }
+  app.setupSelected = { side, slot };
+  refreshSetupDom();
+}
+
+function selectSetupPiece(x, y, pieceId) {
+  const { white, black } = previewLoadouts();
+  const preview = E.createGameState(white, black);
+  const piece = pieceId
+    ? preview.pieces[pieceId]
+    : preview.pieces[preview.board[y]?.[x] || ''];
+  if (!piece) return;
+  selectSetupSlot(piece.side, piece.slot);
+}
+
+function applySetupChoice(side, slot, value) {
+  if (!side || !slot || !canEditSetupSide(side)) return;
+  const current = { ...getLoadoutFor(side) };
+  if (current[slot] === value) {
+    app.setupSelected = { side, slot };
+    refreshSetupDom();
+    return;
+  }
+  current[slot] = value;
+  if (E.slotType(slot) === 'M') {
+    const other = slot === 'M1' ? 'M2' : 'M1';
+    if (current[slot] === 'Q' && current[other] === 'Q') current[other] = 'R:transport';
+    else if (current[slot] !== 'Q' && current[other] !== 'Q') current[other] = 'Q';
+  }
+  setLoadoutFor(side, current);
+  app.setupSelected = { side, slot };
+  refreshSetupDom();
 }
 
 /* ------------------------------------------------------------------ */
@@ -1190,7 +1391,7 @@ function rulesHtml() {
           </div>
           <ol class="rules-steps">
             <li><b>固定阵型</b><span>白方在下、黑方在上；白方 e9 / h9 各有一枚前哨兵，黑方镜像为 e4 / h4。</span></li>
-            <li><b>选择亚型</b><span>为每个槽位选择兵种亚型；同一兵种的不同亚型可以混编。</span></li>
+            <li><b>选择亚型</b><span>点击棋盘上的棋子或下方槽位，在右侧棋子选项里更换亚型；同一兵种的不同亚型可以混编。</span></li>
             <li><b>后 / 车槽位</b><span>d10 与 i10 必须分别放一个后和一个车；全场的车只能是运输车或攻城车，没有普通车。</span></li>
           </ol>
         </section>
@@ -2010,6 +2211,7 @@ function onClick(event) {
       break;
     case 'ai-side':
       app.side = actionEl.dataset.side;
+      app.setupSelected = { side: editingSide(), slot: 'K' };
       render();
       break;
     case 'difficulty':
@@ -2018,18 +2220,33 @@ function onClick(event) {
       break;
     case 'hotseat-tab':
       app.hotseat.editing = actionEl.dataset.side;
+      app.orientation = actionEl.dataset.side;
+      app.setupSelected = { side: editingSide(), slot: 'K' };
       render();
+      break;
+    case 'setup-cell':
+      selectSetupPiece(Number(actionEl.dataset.x), Number(actionEl.dataset.y), actionEl.dataset.pieceId || '');
+      break;
+    case 'setup-select-slot':
+      selectSetupSlot(actionEl.dataset.side, actionEl.dataset.slot);
+      break;
+    case 'setup-choice':
+      applySetupChoice(actionEl.dataset.side, actionEl.dataset.slot, actionEl.dataset.value ?? '');
       break;
     case 'random-loadout':
       randomizeLoadout(editingSide());
       break;
-    case 'default-loadout':
-      setLoadoutFor(editingSide(), E.normalizeLoadout(E.defaultLoadout(), editingSide()));
-      render();
+    case 'default-loadout': {
+      const side = editingSide();
+      setLoadoutFor(side, E.normalizeLoadout(E.defaultLoadout(), side));
+      app.setupSelected = { side, slot: 'K' };
+      refreshSetupDom();
       break;
+    }
     case 'copy-white':
       app.hotseat.blackLoadout = { ...app.hotseat.whiteLoadout };
-      render();
+      app.setupSelected = { side: 'black', slot: 'K' };
+      refreshSetupDom();
       break;
     case 'start-game':
       if (app.setupFor === 'ai') startAIGame();
@@ -2064,23 +2281,6 @@ function onClick(event) {
   }
 }
 
-function onChange(event) {
-  const el = event.target.closest('[data-action="set-slot"]');
-  if (!el) return;
-  const side = el.dataset.side;
-  const slot = el.dataset.slot;
-  const value = el.value;
-  const current = { ...getLoadoutFor(side) };
-  current[slot] = value === '' ? null : value;
-  if (E.slotType(slot) === 'M') {
-    const other = slot === 'M1' ? 'M2' : 'M1';
-    if (current[slot] === 'Q' && current[other] === 'Q') current[other] = 'R:transport';
-    else if (current[slot] !== 'Q' && current[other] !== 'Q') current[other] = 'Q';
-  }
-  setLoadoutFor(side, current);
-  render();
-}
-
 function randomizeLoadout(side) {
   const next = {};
   const slots = E.FORMATION.filter((x) => x.side === side);
@@ -2094,7 +2294,8 @@ function randomizeLoadout(side) {
     else next[f.slot] = pick((E.SUBTYPES[st] || []).map((s) => s.id));
   }
   setLoadoutFor(side, next);
-  render();
+  app.setupSelected = { side, slot: 'K' };
+  refreshSetupDom();
 }
 
 async function doDavid() {
@@ -2180,7 +2381,6 @@ async function doRematch() {
 }
 
 document.addEventListener('click', onClick);
-document.addEventListener('change', onChange);
 document.addEventListener('pointerover', onPiecePreview);
 document.addEventListener('pointermove', onPiecePreviewMove);
 document.addEventListener('pointerout', onPiecePreviewOut);
