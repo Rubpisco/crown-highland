@@ -256,6 +256,11 @@ test('盾兵攻击斜前方和正后方，不攻击斜后方', () => {
   assert.equal(legal.some((m) => m.captureId === 'bF'), true);
   assert.equal(legal.some((m) => m.captureId === 'bB'), true);
   assert.equal(legal.some((m) => m.captureId === 'bD'), false);
+  const rearCapture = legal.find((m) => m.captureId === 'bB');
+  E.makeMove(s, rearCapture);
+  assert.equal(s.board[6][5], 'wSh');
+  assert.equal(s.board[5][5], null);
+  assert.equal(s.pieces.bB, undefined);
 
   // 高地上的盾兵仍不能攻击正后方的低地敌人。
   s = emptyState();

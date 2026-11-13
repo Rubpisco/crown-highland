@@ -1131,7 +1131,8 @@ function pieceDemoRange(type, subtype) {
     } else if (subtype === 'shield') {
       add(0, -1, 'move');
       add(-1, -1, 'attack'); add(1, -1, 'attack');
-      add(-1, 1, 'attack'); add(1, 1, 'attack');
+      // 正后方 1 格，不是斜后方。
+      add(0, 1, 'attack');
     }
   }
   return { move, attack, moveOnly };
