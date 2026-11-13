@@ -1,0 +1,6 @@
+node_modules/
+.edge-*/
+.cdp-*.mjs
+*.log
+dist/
+.netlify/

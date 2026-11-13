@@ -1,0 +1,18 @@
+[build]
+  command = "npm run build:netlify"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "24"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# /api/* 由 netlify/functions/api.mjs 的 config.path 直接处理，
+# 不需要额外的 redirect；房间状态存在 Netlify Blobs。
+
+[[headers]]
+  for = "/shared/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"

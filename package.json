@@ -1,0 +1,19 @@
+{
+  "name": "crown-highland",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "王冠高地：12×12 布阵象棋，支持人机、同屏与好友在线对弈",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node tests/engine.test.js && node tests/room-service.test.js",
+    "build:netlify": "node scripts/build-netlify.mjs"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^10.4.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
