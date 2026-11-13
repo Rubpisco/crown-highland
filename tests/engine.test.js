@@ -163,7 +163,7 @@ test('连续高地上步兵和弓兵都能吃掉同片高地的敌子', () => {
   assert.equal(E.generatePseudoMoves(s, 'white', s.pieces.wA).some((m) => m.captureId === 'bE'), true);
 });
 
-test('小兵下高地只能走正前方一格，且不能攻击高地下的敌人', () => {
+test('小兵下高地：步兵不能斜下攻击，枪兵可正前 1 格攻击', () => {
   let s = emptyState();
   plain(s);
   add(s, 'wI', 'white', 'P', 'infantry', 5, 5);
@@ -180,16 +180,6 @@ test('小兵下高地只能走正前方一格，且不能攻击高地下的敌�
 
   s = emptyState();
   plain(s);
-  add(s, 'wA', 'white', 'P', 'archer', 5, 5);
-  add(s, 'bE', 'black', 'P', 'infantry', 4, 4);
-  add(s, 'wK', 'white', 'K', 'david', 11, 10);
-  add(s, 'bK', 'black', 'K', 'david', 11, 11);
-  highland(s, [[5, 5]]);
-  assert.equal(E.canAttack(s, s.pieces.wA, { x: 5, y: 5 }, { x: 4, y: 4 }), false);
-  assert.equal(E.generatePseudoMoves(s, 'white', s.pieces.wA).some((m) => m.captureId === 'bE'), false);
-
-  s = emptyState();
-  plain(s);
   add(s, 'wSp', 'white', 'P', 'spear', 5, 5);
   add(s, 'bE', 'black', 'P', 'infantry', 5, 4);
   add(s, 'wK', 'white', 'K', 'david', 11, 10);
@@ -197,6 +187,40 @@ test('小兵下高地只能走正前方一格，且不能攻击高地下的敌�
   highland(s, [[5, 5]]);
   assert.equal(E.canAttack(s, s.pieces.wSp, { x: 5, y: 5 }, { x: 5, y: 4 }), true);
   assert.equal(E.generatePseudoMoves(s, 'white', s.pieces.wSp).some((m) => m.captureId === 'bE'), true);
+});
+
+test('高地上的弓兵可以攻击斜前方 1 格的高地下敌人', () => {
+  let s = emptyState();
+  plain(s);
+  add(s, 'wA', 'white', 'P', 'archer', 5, 5);
+  add(s, 'bE', 'black', 'P', 'infantry', 4, 4);
+  add(s, 'wK', 'white', 'K', 'david', 0, 0);
+  add(s, 'bK', 'black', 'K', 'david', 11, 11);
+  highland(s, [[5, 5]]);
+  assert.equal(E.canAttack(s, s.pieces.wA, { x: 5, y: 5 }, { x: 4, y: 4 }), true);
+  assert.equal(E.generatePseudoMoves(s, 'white', s.pieces.wA).some((m) => m.captureId === 'bE'), true);
+  assert.equal(E.generateLegalMoves(s, 'white').some((m) => m.captureId === 'bE'), true);
+
+  // 正前方和 L 形远程仍然不能越过高地边缘攻击低处。
+  add(s, 'bF', 'black', 'P', 'infantry', 5, 4);
+  add(s, 'bL', 'black', 'P', 'infantry', 4, 3);
+  assert.equal(E.canAttack(s, s.pieces.wA, { x: 5, y: 5 }, { x: 5, y: 4 }), false);
+  assert.equal(E.canAttack(s, s.pieces.wA, { x: 5, y: 5 }, { x: 4, y: 3 }), false);
+  const moves = E.generatePseudoMoves(s, 'white', s.pieces.wA);
+  assert.equal(moves.some((m) => m.captureId === 'bF'), false);
+  assert.equal(moves.some((m) => m.captureId === 'bL'), false);
+
+  // 黑方镜像：黑方弓兵在高地上攻击斜前方（y 增大方向）1 格。
+  s = emptyState('black');
+  plain(s);
+  add(s, 'bA', 'black', 'P', 'archer', 5, 5);
+  add(s, 'wE', 'white', 'P', 'infantry', 4, 6);
+  add(s, 'wK', 'white', 'K', 'david', 0, 0);
+  add(s, 'bK', 'black', 'K', 'david', 11, 11);
+  highland(s, [[5, 5]]);
+  assert.equal(E.canAttack(s, s.pieces.bA, { x: 5, y: 5 }, { x: 4, y: 6 }), true);
+  assert.equal(E.generatePseudoMoves(s, 'black', s.pieces.bA).some((m) => m.captureId === 'wE'), true);
+  assert.equal(E.generateLegalMoves(s, 'black').some((m) => m.captureId === 'wE'), true);
 });
 
 test('高地目标：普通棋子只能山脚/同片高地攻击，攻城车可远攻', () => {
